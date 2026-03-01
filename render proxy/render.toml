@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: socks-proxy
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: MAX_CONNECTIONS
+        value: 1000

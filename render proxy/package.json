@@ -1,0 +1,22 @@
+{
+  "name": "proxy",
+  "version": "3.0.0",
+  "description": "proxy server supporting WebSocket, HTTP/HTTPS, and SOCKS4/SOCKS5",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "author": "Yuta1111x",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.18.0",
+    "socks": "^2.8.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
