@@ -88,7 +88,7 @@ wss.on('connection', (clientWs, req) => {
         'Host': parsedTarget.host
       }
     });
-
+targetWs.binaryType = 'arraybuffer';
     targetWs.on('message', (data, isBinary) => {
       if (clientWs.readyState === WebSocket.OPEN) {
         clientWs.send(data, { binary: isBinary });
@@ -126,4 +126,5 @@ process.on('SIGTERM', () => {
     wss.clients.forEach(ws => ws.close(1001, 'Server shutting down'));
     process.exit(0);
   });
+
 });
