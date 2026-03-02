@@ -4,7 +4,6 @@ const { URL } = require('url');
 
 const PORT = process.env.PORT || 8080;
 const MAX_CONNECTIONS = 1000;
-const HEARTBEAT_INTERVAL = 30000;
 
 let connectionCount = 0;
 
@@ -39,15 +38,11 @@ wss.on('connection', (clientWs, req) => {
 
   let targetWs = null;
   let cleaned = false;
-  let pingInterval = null;
-  clientWs.isAlive = true;
 
   const cleanup = () => {
     if (cleaned) return;
     cleaned = true;
     connectionCount--;
-    
-    if (pingInterval) clearInterval(pingInterval);
     
     if (targetWs) {
       targetWs.removeAllListeners();
@@ -55,48 +50,43 @@ wss.on('connection', (clientWs, req) => {
       targetWs = null;
     }
 
-    clientWs.removeAllListeners();
-    clientWs.terminate();
+    if (clientWs) {
+      clientWs.removeAllListeners();
+      clientWs.terminate();
+    }
   };
 
   clientWs.on('message', (data, isBinary) => {
-    if (data.toString() === 'pong') {
-      clientWs.isAlive = true;
-      return;
-    }
-    
     if (targetWs && targetWs.readyState === WebSocket.OPEN) {
       targetWs.send(data, { binary: isBinary });
     }
   });
 
-  clientWs.on('pong', () => {
-    clientWs.isAlive = true;
+  clientWs.on('close', (code, reason) => {
+    cleanup();
+  });
+  
+  clientWs.on('error', (err) => {
+    console.error(`Client error: ${err.message}`);
+    cleanup();
   });
 
-  clientWs.on('close', cleanup);
-  clientWs.on('error', cleanup);
-
   try {
+    const parsedTarget = new URL(targetUrl);
+    
     targetWs = new WebSocket(targetUrl, {
       perMessageDeflate: false,
       maxPayload: 256 * 1024,
-      handshakeTimeout: 10000,
+      handshakeTimeout: 15000,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Origin': 'https://moomoo.io'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Origin': 'https://moomoo.io',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Sec-WebSocket-Extensions': 'permessage-deflate; client_max_window_bits',
+        'Host': parsedTarget.host
       }
-    });
-
-    targetWs.on('open', () => {
-      pingInterval = setInterval(() => {
-        if (clientWs.isAlive === false) {
-          cleanup();
-          return;
-        }
-        clientWs.isAlive = false;
-        clientWs.ping();
-      }, HEARTBEAT_INTERVAL);
     });
 
     targetWs.on('message', (data, isBinary) => {
@@ -105,22 +95,35 @@ wss.on('connection', (clientWs, req) => {
       }
     });
 
-    targetWs.on('close', cleanup);
-    targetWs.on('error', cleanup);
+    targetWs.on('close', (code, reason) => {
+      cleanup();
+    });
+    
+    targetWs.on('error', (err) => {
+      console.error(`Target error: ${err.message}`);
+      cleanup();
+    });
 
   } catch (error) {
+    console.error(`Connection error: ${error.message}`);
     cleanup();
   }
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`WebSocket proxy with heartbeats on 0.0.0.0:${PORT}`);
+  console.log(`✓ WebSocket proxy on 0.0.0.0:${PORT}`);
+  console.log(`✓ Max connections: ${MAX_CONNECTIONS}`);
+});
+
+server.on('error', (error) => {
+  console.error(`Server error: ${error.message}`);
+  process.exit(1);
 });
 
 process.on('SIGTERM', () => {
+  console.log('Received SIGTERM, shutting down gracefully...');
   server.close(() => {
-    wss.clients.forEach(ws => ws.terminate());
+    wss.clients.forEach(ws => ws.close(1001, 'Server shutting down'));
     process.exit(0);
   });
 });
-//fly deploy -a cloud-proxy-server-purple-fire-5296
